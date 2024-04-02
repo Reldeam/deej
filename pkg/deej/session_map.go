@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"math"
 
 	"github.com/omriharel/deej/pkg/deej/util"
 	"github.com/thoas/go-funk"
@@ -204,6 +205,47 @@ func (m *sessionMap) sessionMapped(session Session) bool {
 	})
 
 	return matchFound
+}
+
+func (m* sessionMap) getPeakValues() []float32 {
+
+	// first of all, ensure our session map isn't moldy
+	if m.lastSessionRefresh.Add(maxTimeBetweenSessionRefreshes).Before(time.Now()) {
+		m.logger.Debug("Stale session map detected on slider move, refreshing")
+		m.refreshSessions(true)
+	}
+
+	numSliders := m.deej.serial.lastKnownNumSliders
+	var peaks [numSliders]float32
+
+	for(i := 0; i < m.deej.serial.lastKnownNumSliders; i++) {
+
+		peaks[i] = 0
+		targets, ok := m.deej.config.SliderMapping.get(event.SliderID)
+
+		if !ok {
+			return
+		}
+
+		for _, target := range targets {
+			resolvedTargets := m.resolveTarget(target)
+			for _, resolvedTarget := range resolvedTargets {
+				sessions, ok := m.get(resolvedTarget)
+
+				if !ok {
+					continue
+				}
+
+				for _, session := range sessions {
+					peaks[i] = math.Max(peaks[i], session.GetPeak())
+				}
+			}
+		}
+
+	}
+
+	return peaks
+
 }
 
 func (m *sessionMap) handleSliderMoveEvent(event SliderMoveEvent) {

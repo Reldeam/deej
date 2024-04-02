@@ -22,6 +22,7 @@ type wcaSession struct {
 
 	control *wca.IAudioSessionControl2
 	volume  *wca.ISimpleAudioVolume
+	meter *wca.IAudioMeterInformation
 
 	eventCtx *ole.GUID
 }
@@ -30,6 +31,7 @@ type masterSession struct {
 	baseSession
 
 	volume *wca.IAudioEndpointVolume
+	meter *wca.IAudioMeterInformation
 
 	eventCtx *ole.GUID
 
@@ -40,6 +42,7 @@ func newWCASession(
 	logger *zap.SugaredLogger,
 	control *wca.IAudioSessionControl2,
 	volume *wca.ISimpleAudioVolume,
+	meter *wca.IAudioMeterInformation,
 	pid uint32,
 	eventCtx *ole.GUID,
 ) (*wcaSession, error) {
@@ -47,6 +50,7 @@ func newWCASession(
 	s := &wcaSession{
 		control:  control,
 		volume:   volume,
+		meter:    meter,
 		pid:      pid,
 		eventCtx: eventCtx,
 	}
@@ -89,6 +93,7 @@ func newWCASession(
 func newMasterSession(
 	logger *zap.SugaredLogger,
 	volume *wca.IAudioEndpointVolume,
+	meter * wca.IAudioMeterInformation,
 	eventCtx *ole.GUID,
 	key string,
 	loggerKey string,
@@ -96,6 +101,7 @@ func newMasterSession(
 
 	s := &masterSession{
 		volume:   volume,
+		meter:    meter,
 		eventCtx: eventCtx,
 	}
 
@@ -117,6 +123,16 @@ func (s *wcaSession) GetVolume() float32 {
 	}
 
 	return level
+}
+
+func (s *wcaSession) GetPeak() float32 {
+	var peak float32
+
+	if err := s.meter.GetPeakValue(&peak); err != nil {
+		s.logger.Warnw("Failed to get session peak", "error", err)
+	}
+
+	return peak
 }
 
 func (s *wcaSession) SetVolume(v float32) error {

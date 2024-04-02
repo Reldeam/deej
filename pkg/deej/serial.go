@@ -127,6 +127,13 @@ func (sio *SerialIO) Start() error {
 	return nil
 }
 
+func (sio *SerialIO) SendPeakValues(values line) {
+	// Send peak values to the arduino
+	// This function should be called after the sliders have been updated
+	// to send the peak values to the arduino
+
+}
+
 // Stop signals us to shut down our serial connection, if one is active
 func (sio *SerialIO) Stop() {
 	if sio.connected {

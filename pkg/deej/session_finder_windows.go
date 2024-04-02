@@ -224,14 +224,20 @@ func (sf *wcaSessionFinder) registerDefaultDeviceChangeCallback() error {
 func (sf *wcaSessionFinder) getMasterSession(mmDevice *wca.IMMDevice, key string, loggerKey string) (*masterSession, error) {
 
 	var audioEndpointVolume *wca.IAudioEndpointVolume
+	var audioEndpointMeter *wca.IAudioMeterInformation
 
 	if err := mmDevice.Activate(wca.IID_IAudioEndpointVolume, wca.CLSCTX_ALL, nil, &audioEndpointVolume); err != nil {
 		sf.logger.Warnw("Failed to activate AudioEndpointVolume for master session", "error", err)
 		return nil, fmt.Errorf("activate master session: %w", err)
 	}
 
+	if err := mmDevice.Activate(wca.IID_IAudioMeterInformation, wca.CLSCTX_ALL, nil, &audioEndpointMeter); err != nil {
+		sf.logger.Warnw("Failed to activate AudioMeterInformation for master session", "error", err)
+		return nil, fmt.Errorf("activate master session: %w", err)
+	}
+
 	// create the master session
-	master, err := newMasterSession(sf.sessionLogger, audioEndpointVolume, sf.eventCtx, key, loggerKey)
+	master, err := newMasterSession(sf.sessionLogger, audioEndpointVolume, audioEndpointMeter, sf.eventCtx, key, loggerKey)
 	if err != nil {
 		sf.logger.Warnw("Failed to create master session instance", "error", err)
 		return nil, fmt.Errorf("create master session: %w", err)
@@ -477,12 +483,24 @@ func (sf *wcaSessionFinder) enumerateAndAddProcessSessions(
 
 			return fmt.Errorf("query session %d ISimpleAudioVolume: %w", sessionIdx, err)
 		}
-
 		// make it useful, again
 		simpleAudioVolume := (*wca.ISimpleAudioVolume)(unsafe.Pointer(dispatch))
 
+		// get its IAudioMeterInformation
+		dispatch, err = audioSessionControl2.QueryInterface(wca.IID_IAudioMeterInformation)
+		if err != nil {
+			sf.logger.Warnw("Failed to query session's IAudioMeterInformation",
+				"error", err,
+				"sessionIdx", sessionIdx)
+
+			return fmt.Errorf("query session %d IAudioMeterInformation: %w", sessionIdx, err)
+		}
+		// make it useful, again
+		audioMeterInformation := (*wca.IAudioMeterInformation)(unsafe.Pointer(dispatch))
+		
+
 		// create the deej session object
-		newSession, err := newWCASession(sf.sessionLogger, audioSessionControl2, simpleAudioVolume, pid, sf.eventCtx)
+		newSession, err := newWCASession(sf.sessionLogger, audioSessionControl2, simpleAudioVolume, audioMeterInformation, pid, sf.eventCtx)
 		if err != nil {
 
 			// this could just mean this process is already closed by now, and the session will be cleaned up later by the OS
